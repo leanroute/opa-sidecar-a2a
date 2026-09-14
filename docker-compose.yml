@@ -1,0 +1,38 @@
+# docker-compose for local development.
+#
+# Usage:
+#   docker compose up --build       # sidecar only
+#   docker compose --profile demo up # sidecar + planner-executor demo
+#
+# The demo profile runs a one-shot planner-executor exchange against
+# the sidecar and exits. The sidecar itself stays up so you can hit it
+# with your own curl commands or another agent.
+
+services:
+  sidecar:
+    build: .
+    image: leanroute/opa-sidecar-a2a:dev
+    container_name: opa-sidecar
+    ports:
+      - "8181:8181"
+    healthcheck:
+      test: ["CMD", "/app/opa-sidecar", "--version"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+    restart: unless-stopped
+
+  # Optional: run the worked demo end-to-end. Enable with:
+  #   docker compose --profile demo up
+  demo:
+    profiles: ["demo"]
+    build:
+      context: .
+      dockerfile: examples/planner-executor/Dockerfile
+    depends_on:
+      sidecar:
+        condition: service_started
+    environment:
+      SIDECAR_URL: "http://sidecar:8181/authorize"
+    # Keep container around for logs after the demo finishes.
+    tty: true
